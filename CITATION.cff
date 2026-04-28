@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "dta-floor-atlas: Empirical reproduction-floor analysis for diagnostic test accuracy meta-analysis"
+authors:
+  - family-names: "Ahmad"
+    given-names: "Mahmood"
+    email: "mahmood.ahmad2@nhs.net"
+    affiliation: "Tahir Heart Institute"
+    orcid: "https://orcid.org/0009-0003-7781-4478"
+version: "0.0.1"
+date-released: "2026-04-28"
+license: MIT
+repository-code: "https://github.com/mahmood726-cyber/dta-floor-atlas"
+keywords:
+  - meta-analysis
+  - diagnostic-test-accuracy
+  - bivariate-model
+  - reproducibility
+  - DTA70
