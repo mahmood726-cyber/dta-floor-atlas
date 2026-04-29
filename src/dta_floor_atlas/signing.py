@@ -24,8 +24,22 @@ def _get_key() -> bytes:
     return key.encode("utf-8")
 
 
+def _str_keys(obj):
+    """Recursively convert dict keys to strings for canonical JSON serialisation.
+
+    json.dumps(sort_keys=True) raises TypeError when a dict contains mixed
+    int/str keys (e.g. by_level = {1: 59, 'inf': 2}).  Converting all keys to
+    str first gives a stable, comparable canonical form.
+    """
+    if isinstance(obj, dict):
+        return {str(k): _str_keys(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_str_keys(v) for v in obj]
+    return obj
+
+
 def _canonical_payload(payload: dict) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(_str_keys(payload), sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def sign_bundle(payload: dict) -> dict:
