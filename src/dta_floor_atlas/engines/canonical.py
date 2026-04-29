@@ -7,10 +7,10 @@ package (metafor) -- no in-house re-implementation that could be challenged.
 Reference: Reitsma JB et al. (2005), Chu H & Cole SR (2006), Viechtbauer 2010.
 """
 from __future__ import annotations
-import hashlib, os
+import hashlib
 from dta_floor_atlas.r_bridge import run_r, RTimeout, RError
 from dta_floor_atlas.types import Dataset, FitResult
-from dta_floor_atlas.engines._r_helpers import study_table_to_r_json, needs_continuity
+from dta_floor_atlas.engines._r_helpers import study_table_env, needs_continuity
 
 
 # R script per dataset. Reads study table from env JSON, runs metafor::rma.mv
@@ -19,7 +19,12 @@ _FIT_CANONICAL_R = r"""
 suppressPackageStartupMessages({
   library(metafor); library(jsonlite)
 })
-df <- fromJSON(Sys.getenv("DTA_STUDY_TABLE_JSON"))
+dta_file <- Sys.getenv("DTA_STUDY_TABLE_FILE")
+if (nchar(dta_file) > 0) {
+  df <- fromJSON(readLines(dta_file, warn=FALSE))
+} else {
+  df <- fromJSON(Sys.getenv("DTA_STUDY_TABLE_JSON"))
+}
 add_cc <- as.logical(Sys.getenv("DTA_ADD_CONTINUITY"))
 if (add_cc) {
   df$TP <- df$TP + 0.5; df$FP <- df$FP + 0.5
@@ -88,14 +93,7 @@ def fit_canonical(d: Dataset, *, raise_on_error: bool = False, timeout_s: int = 
     value for very large-k datasets (see cascade._timeout_for_dataset).
     """
     add_cc = needs_continuity(d.study_table)
-    sj = study_table_to_r_json(d.study_table)
-    env_was = {
-        "DTA_STUDY_TABLE_JSON": os.environ.get("DTA_STUDY_TABLE_JSON"),
-        "DTA_ADD_CONTINUITY": os.environ.get("DTA_ADD_CONTINUITY"),
-    }
-    os.environ["DTA_STUDY_TABLE_JSON"] = sj
-    os.environ["DTA_ADD_CONTINUITY"] = "TRUE" if add_cc else "FALSE"
-    try:
+    with study_table_env(d.study_table, add_cc):
         try:
             res = run_r(_FIT_CANONICAL_R, timeout_s=timeout_s, raise_on_error=raise_on_error)
         except (RTimeout, RError) as e:
@@ -136,12 +134,6 @@ def fit_canonical(d: Dataset, *, raise_on_error: bool = False, timeout_s: int = 
             convergence_reason="ok",
             raw_stdout_sha256=None,
         )
-    finally:
-        for k, v in env_was.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
 
 
 def _failed_fit(d: Dataset, *, reason: str, exit_status: int,

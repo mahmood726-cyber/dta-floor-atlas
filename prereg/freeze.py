@@ -18,6 +18,13 @@ LOCKED_FILES = (
     "src/dta_floor_atlas/floors/disagreement.py",
     "src/dta_floor_atlas/floors/decision_flip.py",
     "src/dta_floor_atlas/engines/cascade.py",
+    # Amendment 2 (2026-04-29) -- expanded registry: all R-bound engine code is
+    # locked because R-script changes affect production outputs.
+    "src/dta_floor_atlas/engines/canonical.py",
+    "src/dta_floor_atlas/engines/copula.py",
+    "src/dta_floor_atlas/engines/reitsma.py",
+    "src/dta_floor_atlas/engines/_r_helpers.py",
+    "src/dta_floor_atlas/r_bridge.py",
 )
 
 

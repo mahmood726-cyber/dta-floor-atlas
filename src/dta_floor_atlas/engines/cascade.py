@@ -10,12 +10,12 @@ The cascade level is the primary input to Floor 1 (canonical failure rate)
 and Floor 2 (cascade spectrum).
 """
 from __future__ import annotations
-import hashlib, os
+import hashlib
 from dataclasses import replace
 from dta_floor_atlas.engines.canonical import fit_canonical, _failed_fit
 from dta_floor_atlas.r_bridge import run_r, RTimeout, RError
 from dta_floor_atlas.types import Dataset, FitResult
-from dta_floor_atlas.engines._r_helpers import study_table_to_r_json, needs_continuity
+from dta_floor_atlas.engines._r_helpers import study_table_env, needs_continuity
 
 
 # Level 2: starting-value sweep. Try rho_init in {-0.9, -0.5, 0, 0.5, 0.9} sequentially;
@@ -29,7 +29,12 @@ _FIT_CANONICAL_STARTING_SWEEP_R = r"""
 suppressPackageStartupMessages({
   library(metafor); library(jsonlite)
 })
-df <- fromJSON(Sys.getenv("DTA_STUDY_TABLE_JSON"))
+dta_file <- Sys.getenv("DTA_STUDY_TABLE_FILE")
+if (nchar(dta_file) > 0) {
+  df <- fromJSON(readLines(dta_file, warn=FALSE))
+} else {
+  df <- fromJSON(Sys.getenv("DTA_STUDY_TABLE_JSON"))
+}
 add_cc <- as.logical(Sys.getenv("DTA_ADD_CONTINUITY"))
 if (add_cc) {
   df$TP <- df$TP + 0.5; df$FP <- df$FP + 0.5
@@ -186,15 +191,8 @@ def _fit_at_level(d: Dataset, level: int) -> FitResult:
     if level == 1:
         return fit_canonical(d, raise_on_error=False, timeout_s=timeout_s)
     add_cc = needs_continuity(d.study_table)
-    sj = study_table_to_r_json(d.study_table)
     script = _FIT_CANONICAL_STARTING_SWEEP_R if level == 2 else _FIT_CANONICAL_RHO_ZERO_R
-    env_was = {
-        "DTA_STUDY_TABLE_JSON": os.environ.get("DTA_STUDY_TABLE_JSON"),
-        "DTA_ADD_CONTINUITY": os.environ.get("DTA_ADD_CONTINUITY"),
-    }
-    os.environ["DTA_STUDY_TABLE_JSON"] = sj
-    os.environ["DTA_ADD_CONTINUITY"] = "TRUE" if add_cc else "FALSE"
-    try:
+    with study_table_env(d.study_table, add_cc):
         try:
             res = run_r(script, timeout_s=timeout_s, raise_on_error=False)
         except (RTimeout, RError) as e:
@@ -226,12 +224,6 @@ def _fit_at_level(d: Dataset, level: int) -> FitResult:
             call_string=("level=2 starting-value sweep rho_init in {-0.9,-0.5,0,0.5,0.9}" if level == 2 else "level=3 rho fixed at 0"),
             exit_status=0, convergence_reason="ok", raw_stdout_sha256=None,
         )
-    finally:
-        for k, v in env_was.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
 
 
 def run_cascade(d: Dataset) -> FitResult:
