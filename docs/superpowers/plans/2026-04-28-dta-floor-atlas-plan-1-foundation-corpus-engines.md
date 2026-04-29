@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the `dta-floor-atlas` repo with frozen thresholds, a working DTA70 corpus loader, and four validated DTA engines (canonical bivariate REML, HSROC, Reitsma, Moses-Littenberg) plus the Strategy IV convergence cascade. Ships at tag `v0.1.0-engines-validated` when all engines achieve R parity (tolerance 1e-6) on a stratified 10-dataset subset of DTA70.
+**Goal:** Stand up the `dta-floor-atlas` repo with frozen thresholds, a working DTA70 corpus loader, and four validated DTA engines (canonical bivariate REML, CopulaREMADA, Reitsma, Moses-Littenberg) plus the Strategy IV convergence cascade. Ships at tag `v0.1.0-engines-validated` when all engines achieve R parity (tolerance 1e-6) on a stratified 10-dataset subset of DTA70.
 
-**Architecture:** Python orchestrator (`src/dta_floor_atlas/`) with R subprocess for canonical fits via `metafor::rma.mv`, `mada::reitsma`, `HSROC::HSROC`. Moses-Littenberg in pure numpy. Strategy IV cascade: REML → constrained ρ ∈ [-0.95, 0.95] → fix ρ=0 → fail. Frozen thresholds module hash-locked into `prereg/frozen_thresholds.json`.
+**Architecture:** Python orchestrator (`src/dta_floor_atlas/`) with R subprocess for canonical fits via `metafor::rma.mv`, `mada::reitsma`, `CopulaREMADA::CopulaREMADA.norm`. Moses-Littenberg in pure numpy. Strategy IV cascade: REML → constrained ρ ∈ [-0.95, 0.95] → fix ρ=0 → fail. Frozen thresholds module hash-locked into `prereg/frozen_thresholds.json`.
 
-**Tech Stack:** Python 3.11+, R 4.5.2, R packages `mada` `metafor` `HSROC` `DTA70`, pytest, numpy, dataclasses, hashlib.
+**Tech Stack:** Python 3.11+, R 4.5.2, R packages `mada` `metafor` `CopulaREMADA` `jsonlite` `DTA70`, pytest, numpy, dataclasses, hashlib.
 
 **Spec reference:** `docs/superpowers/specs/2026-04-28-dta-reproduction-floor-atlas-design.md`
 
@@ -23,11 +23,11 @@
 
 ```python
 # scripts/preflight_prereqs.py
-"""Fail closed if R 4.5.2 + mada + metafor + HSROC + DTA70 not installed."""
+"""Fail closed if R 4.5.2 + mada + metafor + CopulaREMADA + DTA70 + jsonlite not installed."""
 from __future__ import annotations
 import shutil, subprocess, sys
 
-REQUIRED_R_PACKAGES = ["mada", "metafor", "HSROC", "DTA70"]
+REQUIRED_R_PACKAGES = ["mada", "metafor", "CopulaREMADA", "DTA70", "jsonlite"]
 
 def main() -> int:
     if shutil.which("Rscript") is None:
@@ -45,7 +45,7 @@ def main() -> int:
     out = subprocess.run(["Rscript", "-e", check], capture_output=True, text=True)
     if out.returncode != 0 or "OK" not in out.stdout:
         print(f"FAIL: missing R packages: {out.stdout} {out.stderr}", file=sys.stderr)
-        print("Install via: install.packages(c('mada','metafor','HSROC')); devtools::install_github('mahmood789/DTA70')", file=sys.stderr)
+        print("Install via: install.packages(c('mada','metafor','CopulaREMADA','jsonlite')); devtools::install_github('mahmood789/DTA70')", file=sys.stderr)
         return 1
     print("OK: R 4.5.x + all required packages installed")
     return 0
@@ -66,7 +66,7 @@ Expected: `OK: R 4.5.x + all required packages installed` and exit 0. If FAIL: i
 
 ```bash
 git -C C:/Projects/dta-floor-atlas add scripts/preflight_prereqs.py
-git -C C:/Projects/dta-floor-atlas commit -m "chore: preflight prereq check (R 4.5 + mada/metafor/HSROC/DTA70)"
+git -C C:/Projects/dta-floor-atlas commit -m "chore: preflight prereq check (R 4.5 + mada/metafor/CopulaREMADA/DTA70/jsonlite)"
 ```
 
 ---
@@ -814,7 +814,7 @@ class Dataset:
 
 
 CascadeLevel = Literal[1, 2, 3, "inf", "n/a"]
-EngineName = Literal["canonical", "hsroc", "reitsma", "moses", "archaic", "ems", "gds"]
+EngineName = Literal["canonical", "copula", "reitsma", "moses", "archaic", "ems", "gds"]
 
 
 @dataclass(frozen=True)
@@ -1101,7 +1101,7 @@ pytest tests/test_engine_moses.py -v
 
 ```python
 """DTA model engines."""
-PRIMARY_ENGINES = ("canonical", "hsroc", "reitsma", "moses")
+PRIMARY_ENGINES = ("canonical", "copula", "reitsma", "moses")
 SUPPLEMENTARY_ENGINES = ("archaic", "ems", "gds")
 ```
 
@@ -1545,18 +1545,20 @@ git -C C:/Projects/dta-floor-atlas commit -m "test(canonical): R-parity test on 
 
 ---
 
-## Task 11: HSROC engine (R HSROC package)
+## Task 11: CopulaREMADA engine (R CopulaREMADA package)
 
 **Files:**
-- Create: `src/dta_floor_atlas/engines/hsroc.py`
-- Test: `tests/test_engine_hsroc.py`
+- Create: `src/dta_floor_atlas/engines/copula.py`
+- Test: `tests/test_engine_copula.py`
+
+CopulaREMADA substitutes the originally-spec'd HSROC. HSROC was archived from CRAN in 2024 with no R 4.5 source build; CopulaREMADA provides a paradigmatically-different SROC via copula random-effects (Nikoloulopoulos 2015). Canonical call uses Clayton 270° rotated copula with normal margins (the package's own default example).
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/test_engine_hsroc.py
+# tests/test_engine_copula.py
 import pytest
-from dta_floor_atlas.engines.hsroc import fit_hsroc
+from dta_floor_atlas.engines.copula import fit_copula
 from dta_floor_atlas.types import Dataset, StudyRow
 
 
@@ -1567,58 +1569,58 @@ def _ds(rows, name="test"):
     )
 
 
-def test_hsroc_returns_fit_result():
+def test_copula_returns_fit_result():
     d = _ds([(30, 5, 2, 60), (45, 8, 5, 80), (22, 3, 1, 50),
              (55, 12, 8, 95), (38, 7, 4, 70), (40, 6, 3, 65)])
-    fit = fit_hsroc(d, raise_on_error=False)
-    assert fit.engine == "hsroc"
+    fit = fit_copula(d, raise_on_error=False)
+    assert fit.engine == "copula"
     assert fit.dataset_id == "test"
 
 
-def test_hsroc_records_r_audit_fields():
+def test_copula_records_r_audit_fields():
     d = _ds([(30, 5, 2, 60), (45, 8, 5, 80), (22, 3, 1, 50),
              (55, 12, 8, 95), (38, 7, 4, 70), (40, 6, 3, 65)])
-    fit = fit_hsroc(d, raise_on_error=False)
+    fit = fit_copula(d, raise_on_error=False)
     assert fit.r_version is not None
-    assert fit.call_string is not None and "HSROC" in fit.call_string
+    assert fit.call_string is not None and "CopulaREMADA" in fit.call_string
 
 
-def test_hsroc_failure_does_not_raise_with_raise_on_error_false():
-    """Pathological dataset; HSROC may not converge — must NOT raise."""
+def test_copula_failure_does_not_raise():
     d = _ds([(0, 5, 0, 50), (1, 4, 0, 50)])
-    fit = fit_hsroc(d, raise_on_error=False)
-    assert fit.engine == "hsroc"
+    fit = fit_copula(d, raise_on_error=False)
+    assert fit.engine == "copula"
 ```
 
 - [ ] **Step 2: Run test (expect ImportError)**
 
 ```bash
-pytest tests/test_engine_hsroc.py -v
+pytest tests/test_engine_copula.py -v
 ```
 
-- [ ] **Step 3: Write `src/dta_floor_atlas/engines/hsroc.py`**
+- [ ] **Step 3: Write `src/dta_floor_atlas/engines/copula.py`**
 
 ```python
-"""HSROC model via R HSROC package.
+"""CopulaREMADA via R CopulaREMADA::CopulaREMADA.norm.
 
-Frequentist HSROC fit. Reference: Rutter & Gatsonis (2001).
+Clayton 270 degree rotated copula with normal margins, Gauss-Legendre
+quadrature with nq=15 nodes. This is the package's own default example.
 
-The HSROC package uses MCMC by default; we use frequentist mode where
-available, fallback to a single-chain short-run MCMC for stability checks.
+Substituted for HSROC at v0.1: HSROC was archived from CRAN in 2024 with
+no R 4.5 source build. CopulaREMADA provides a paradigmatically-different
+SROC alternative via copula random effects.
+
+Reference: Nikoloulopoulos AK (2015). Stat Methods Med Res 24(6):780-805.
 """
 from __future__ import annotations
-import hashlib
-import os
+import hashlib, os
 from dta_floor_atlas.r_bridge import run_r, RTimeout, RError
 from dta_floor_atlas.types import Dataset, FitResult
 from dta_floor_atlas.engines._r_helpers import study_table_to_r_json, needs_continuity
 
 
-_FIT_HSROC_R = r"""
+_FIT_COPULA_R = r"""
 suppressPackageStartupMessages({
-  library(jsonlite)
-  has_hsroc <- requireNamespace("HSROC", quietly=TRUE)
-  if (has_hsroc) library(HSROC)
+  library(CopulaREMADA); library(statmod); library(matlab); library(jsonlite)
 })
 df <- fromJSON(Sys.getenv("DTA_STUDY_TABLE_JSON"))
 add_cc <- as.logical(Sys.getenv("DTA_ADD_CONTINUITY"))
@@ -1627,14 +1629,15 @@ if (add_cc) {
   df$FN <- df$FN + 0.5; df$TN <- df$TN + 0.5
 }
 
-if (!has_hsroc) {
-  cat(toJSON(list(converged=FALSE, reason="hsroc_package_unavailable"), auto_unbox=TRUE))
-  quit(save="no")
-}
+nq <- 15
+gl <- gauss.quad.prob(nq, "uniform")
+mgrid <- meshgrid(gl$n, gl$n)
 
 ok <- TRUE
 fit <- tryCatch(
-  HSROC::HSROC(data = df, iter.num = 2000, burn_in = 500),
+  CopulaREMADA.norm(TP=df$TP, FN=df$FN, FP=df$FP, TN=df$TN,
+                    gl=gl, mgrid=mgrid,
+                    qcond=qcondcln270, tau2par=tau2par.cln270),
   error = function(e) { ok <<- FALSE; e }
 )
 if (!ok) {
@@ -1642,21 +1645,24 @@ if (!ok) {
   quit(save="no")
 }
 
-# Extract pooled Se, Sp from posterior summary
-post <- summary(fit)
-pooled_se <- as.numeric(post$Se_overall["Mean"])
-pooled_sp <- as.numeric(post$Sp_overall["Mean"])
+# CopulaREMADA returns par as a numeric vector. mu1 = logit(Se), mu2 = logit(1-Sp).
+# Per package convention, par[1:2] are the marginal means, par[3:4] are heterogeneity.
+mu1 <- as.numeric(fit$par[1])
+mu2 <- as.numeric(fit$par[2])
+pooled_se <- 1 / (1 + exp(-mu1))
+# mu2 is on the logit(1-Sp) scale (False Positive Rate), so Sp = 1 - inv_logit(mu2)
+pooled_sp <- 1 - 1 / (1 + exp(-mu2))
 
 cat(toJSON(list(
   converged = TRUE,
   pooled_se = pooled_se,
   pooled_sp = pooled_sp,
-  hsroc_version = as.character(packageVersion("HSROC"))
+  copula_version = as.character(packageVersion("CopulaREMADA"))
 ), auto_unbox=TRUE, na="null"))
 """
 
 
-def fit_hsroc(d: Dataset, *, raise_on_error: bool = False) -> FitResult:
+def fit_copula(d: Dataset, *, raise_on_error: bool = False) -> FitResult:
     add_cc = needs_continuity(d.study_table)
     sj = study_table_to_r_json(d.study_table)
     env_was = {
@@ -1667,29 +1673,28 @@ def fit_hsroc(d: Dataset, *, raise_on_error: bool = False) -> FitResult:
     os.environ["DTA_ADD_CONTINUITY"] = "TRUE" if add_cc else "FALSE"
     try:
         try:
-            res = run_r(_FIT_HSROC_R, timeout_s=300, raise_on_error=raise_on_error)
+            res = run_r(_FIT_COPULA_R, timeout_s=300, raise_on_error=raise_on_error)
         except (RTimeout, RError) as e:
-            return _failed_hsroc(d, reason=type(e).__name__, exit_status=1)
+            return _failed(d, reason=type(e).__name__, exit_status=1)
         if res.exit_status != 0:
-            return _failed_hsroc(d, reason="r_error", exit_status=res.exit_status,
-                                 raw_stdout_sha256=hashlib.sha256(res.stdout.encode()).hexdigest())
+            return _failed(d, reason="r_error", exit_status=res.exit_status,
+                           raw_stdout_sha256=hashlib.sha256(res.stdout.encode()).hexdigest())
         try:
             parsed = res.parse_json()
         except Exception:
-            return _failed_hsroc(d, reason="malformed_output", exit_status=res.exit_status,
-                                 raw_stdout_sha256=hashlib.sha256(res.stdout.encode()).hexdigest())
+            return _failed(d, reason="malformed_output", exit_status=res.exit_status,
+                           raw_stdout_sha256=hashlib.sha256(res.stdout.encode()).hexdigest())
         if not parsed.get("converged"):
-            return _failed_hsroc(d, reason=parsed.get("reason", "non_convergence"),
-                                 exit_status=res.exit_status,
-                                 r_version=res.r_version)
+            return _failed(d, reason=parsed.get("reason", "non_convergence"),
+                           exit_status=res.exit_status, r_version=res.r_version)
         return FitResult(
-            dataset_id=d.dataset_id, engine="hsroc", cascade_level="n/a",
+            dataset_id=d.dataset_id, engine="copula", cascade_level="n/a",
             converged=True,
             pooled_se=parsed["pooled_se"], pooled_sp=parsed["pooled_sp"],
             pooled_se_ci=None, pooled_sp_ci=None,
             rho=None, tau2_logit_se=None, tau2_logit_sp=None, auc_partial=None,
-            r_version=res.r_version, package_version=parsed.get("hsroc_version"),
-            call_string="HSROC::HSROC(data=df, iter.num=2000, burn_in=500)",
+            r_version=res.r_version, package_version=parsed.get("copula_version"),
+            call_string="CopulaREMADA::CopulaREMADA.norm(qcond=qcondcln270, tau2par=tau2par.cln270, nq=15)",
             exit_status=0, convergence_reason="ok", raw_stdout_sha256=None,
         )
     finally:
@@ -1698,13 +1703,13 @@ def fit_hsroc(d: Dataset, *, raise_on_error: bool = False) -> FitResult:
             else: os.environ[k] = v
 
 
-def _failed_hsroc(d, *, reason, exit_status, r_version=None, raw_stdout_sha256=None) -> FitResult:
+def _failed(d, *, reason, exit_status, r_version=None, raw_stdout_sha256=None) -> FitResult:
     return FitResult(
-        dataset_id=d.dataset_id, engine="hsroc", cascade_level="n/a", converged=False,
+        dataset_id=d.dataset_id, engine="copula", cascade_level="n/a", converged=False,
         pooled_se=None, pooled_sp=None, pooled_se_ci=None, pooled_sp_ci=None,
         rho=None, tau2_logit_se=None, tau2_logit_sp=None, auc_partial=None,
         r_version=r_version, package_version=None,
-        call_string="HSROC::HSROC(...)", exit_status=exit_status,
+        call_string="CopulaREMADA::CopulaREMADA.norm(...)", exit_status=exit_status,
         convergence_reason=reason, raw_stdout_sha256=raw_stdout_sha256,
     )
 ```
@@ -1712,16 +1717,16 @@ def _failed_hsroc(d, *, reason, exit_status, r_version=None, raw_stdout_sha256=N
 - [ ] **Step 4: Run tests**
 
 ```bash
-pytest tests/test_engine_hsroc.py -v
+pytest tests/test_engine_copula.py -v
 ```
 
-Expected: 3 PASS. (Note: HSROC fits use MCMC and take ~30-60s per dataset. The test uses 6 studies which is borderline; HSROC may report non-convergence for very small k — acceptable, the test only asserts the engine returns a FitResult, not that it converges.)
+Expected: 3 PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git -C C:/Projects/dta-floor-atlas add src/dta_floor_atlas/engines/hsroc.py tests/test_engine_hsroc.py
-git -C C:/Projects/dta-floor-atlas commit -m "feat(engines): HSROC via R HSROC package with graceful failure-as-data"
+git -C C:/Projects/dta-floor-atlas add src/dta_floor_atlas/engines/copula.py tests/test_engine_copula.py
+git -C C:/Projects/dta-floor-atlas commit -m "feat(engines): CopulaREMADA via R CopulaREMADA.norm (substitute for archived HSROC)"
 ```
 
 ---
@@ -2392,12 +2397,12 @@ git -C C:/Projects/dta-floor-atlas commit -m "test(edges): logit clamps, continu
 # tests/test_engines_integration_subset.py
 """End-to-end: load a 3-dataset subset and run all 4 primary engines + cascade.
 
-Slow test (10-90s for HSROC). Mark accordingly so it's skipped in fast CI.
+Slow test (10-90s for CopulaREMADA). Mark accordingly so it's skipped in fast CI.
 """
 import pytest
 from dta_floor_atlas.corpus.loader import load_dta70_datasets
 from dta_floor_atlas.engines.canonical import fit_canonical
-from dta_floor_atlas.engines.hsroc import fit_hsroc
+from dta_floor_atlas.engines.copula import fit_copula
 from dta_floor_atlas.engines.reitsma import fit_reitsma
 from dta_floor_atlas.engines.moses import fit_moses
 from dta_floor_atlas.engines.cascade import run_cascade
@@ -2413,11 +2418,11 @@ def test_all_engines_complete_on_3_dataset_subset():
         pytest.skip(f"None of {SUBSET} found in installed DTA70 — pick 3 valid names")
     for d in datasets[:3]:
         fit_can = run_cascade(d)
-        fit_hs = fit_hsroc(d, raise_on_error=False)
+        fit_co = fit_copula(d, raise_on_error=False)
         fit_re = fit_reitsma(d, raise_on_error=False)
         fit_mo = fit_moses(d)
         assert fit_can.engine == "canonical"
-        assert fit_hs.engine == "hsroc"
+        assert fit_co.engine == "copula"
         assert fit_re.engine == "reitsma"
         assert fit_mo.engine == "moses" and fit_mo.converged is True
 
@@ -2483,7 +2488,7 @@ git -C C:/Projects/dta-floor-atlas commit -m "test(integration): 3-dataset full-
 pytest -v
 ```
 
-Expected: all fast tests PASS (target ~40-50 tests across thresholds, freeze, R bridge, corpus loader, manifest, Moses, canonical, canonical parity, HSROC, Reitsma, cascade, invented, edge cases).
+Expected: all fast tests PASS (target ~40-50 tests across thresholds, freeze, R bridge, corpus loader, manifest, Moses, canonical, canonical parity, CopulaREMADA, Reitsma, cascade, invented, edge cases).
 
 - [ ] **Step 2: Run the slow integration suite once**
 
@@ -2525,7 +2530,7 @@ Last updated: 2026-04-28 (Plan 1 complete)
 - Corpus: DTA70 loader (76 datasets via R bridge), manifest.jsonl with study-table SHA-256
 - Engines:
   - canonical (R metafor::rma.mv, REML, R-parity validated on Glas2003 at tol 1e-6)
-  - hsroc (R HSROC package, MCMC, graceful failure-as-data)
+  - copula (R CopulaREMADA Clayton-270 normal-margins, graceful failure-as-data)
   - reitsma (R mada::reitsma, AUC partial)
   - moses (native Python D-vs-S, conditional continuity correction)
   - cascade (Strategy IV: REML -> constrained-rho -> rho=0 -> inf)

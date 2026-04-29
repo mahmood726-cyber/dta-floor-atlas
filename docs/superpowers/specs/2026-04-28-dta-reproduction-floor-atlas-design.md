@@ -49,11 +49,11 @@ Floor 2 has three reported sub-fractions (each as a percentage of all 76 DTA70 d
 
 Note: Floor 1 = Floor 2a + Floor 2b + Floor 2c by construction.
 
-**Floor 3 — inter-method disagreement at clinically meaningful threshold.** Among DTA70 datasets where at least two of the four primary comparators (canonical-cascade-resolved at any level, HSROC, Reitsma, Moses-Littenberg) converge, the fraction where the maximum pairwise absolute difference among the converged comparators in pooled sensitivity OR pooled specificity exceeds 5 percentage points (`SE_DELTA = 0.05`, `SP_DELTA = 0.05`). Comparator pairs: bivariate-canonical vs HSROC, bivariate-canonical vs Reitsma, bivariate-canonical vs Moses-Littenberg, and all between-pairs.
+**Floor 3 — inter-method disagreement at clinically meaningful threshold.** Among DTA70 datasets where at least two of the four primary comparators (canonical-cascade-resolved at any level, CopulaREMADA, Reitsma, Moses-Littenberg) converge, the fraction where the maximum pairwise absolute difference among the converged comparators in pooled sensitivity OR pooled specificity exceeds 5 percentage points (`SE_DELTA = 0.05`, `SP_DELTA = 0.05`). Comparator pairs: bivariate-canonical vs CopulaREMADA, bivariate-canonical vs Reitsma, bivariate-canonical vs Moses-Littenberg, and all between-pairs.
 
 A comparator that fails to converge for a given dataset is excluded from that dataset's pairwise comparisons. A dataset with fewer than two converged comparators is excluded from Floor 3 with explicit attrition record (denominator and exclusion count both reported).
 
-**Floor 4 — decision-flip rate (PRIMARY HEADLINE).** Among DTA70 datasets where at least two primary comparators converge (same denominator basis as Floor 3), the fraction where method choice induces a positive predictive value (PPV) or negative predictive value (NPV) swing exceeding 5 percentage points (`PPV_SWING = 0.05`, `NPV_SWING = 0.05`).
+**Floor 4 — decision-flip rate (PRIMARY HEADLINE).** Among DTA70 datasets where at least two primary comparators (canonical-cascade-resolved at any level, CopulaREMADA, Reitsma, Moses-Littenberg) converge (same denominator basis as Floor 3), the fraction where method choice induces a positive predictive value (PPV) or negative predictive value (NPV) swing exceeding 5 percentage points (`PPV_SWING = 0.05`, `NPV_SWING = 0.05`).
 
 A comparator that fails to converge for a given dataset is excluded from that dataset's PPV/NPV pairwise comparisons. A dataset with fewer than two converged comparators is excluded from Floor 4 with explicit attrition record. A dataset without a reported clinical prevalence is excluded from the primary (reported-prev) arm of Floor 4 but retained in the sensitivity (grid) arm.
 
@@ -87,7 +87,7 @@ Cochrane DTA expansion is **out of scope for v0.1** and is named explicitly as a
 **Primary (orthodox) comparators — all canonical, all defending the floor headline:**
 
 1. **Bivariate REML** (canonical). R `metafor::rma.mv` with bivariate logit-Se / logit-Sp normal-normal hierarchical model, REML estimator, default starting values, no ρ constraints. This IS the floor reference — every disagreement is "comparator vs canonical."
-2. **HSROC.** R `HSROC::HSROC`, frequentist mode, default priors-equivalent starting values.
+2. **CopulaREMADA.** R `CopulaREMADA::CopulaREMADA.norm` with Clayton 270° rotated copula and normal margins (Gauss-Legendre quadrature, nq=15). Substituted for HSROC: HSROC was originally specified but is archived from CRAN (2024) with no R 4.5 source build; CopulaREMADA provides the same role — a paradigmatically different SROC alternative — via copula random-effects (Nikoloulopoulos 2015) rather than Bayesian hierarchical estimation.
 3. **Reitsma SROC.** R `mada::reitsma`, default specification.
 4. **Moses-Littenberg D vs S regression.** Native Python implementation (closed-form linear regression of D = logit(Se) - logit(1-Sp) on S = logit(Se) + logit(1-Sp); no iterative solver, no convergence concept).
 
@@ -155,7 +155,7 @@ C:\Projects\dta-floor-atlas\
 │   ├── corpus/loader.py
 │   ├── engines/
 │   │   ├── canonical.py    (R subprocess → metafor::rma.mv)
-│   │   ├── hsroc.py        (R subprocess → HSROC)
+│   │   ├── copula.py       (R subprocess → CopulaREMADA.norm)
 │   │   ├── reitsma.py      (R subprocess → mada::reitsma)
 │   │   ├── moses.py        (native numpy)
 │   │   ├── invented.py     (subprocess → archaic-dta / ems-dta / gds-dta)
@@ -202,7 +202,7 @@ DTA70 (R package, version-pinned)
     ↓
 corpus/loader.py  ─── R subprocess data() ───►  76 Dataset objects
     ↓
-engines/cascade.py + engines/{hsroc,reitsma,moses,invented}.py
+engines/cascade.py + engines/{copula,reitsma,moses,invented}.py
     ↓ (parallelizable across datasets)
 outputs/fits.jsonl  +  outputs/r_failures/*.txt
     ↓
@@ -216,7 +216,7 @@ report.py ──►  docs/index.html  +  outputs/results.json (HMAC-signed)
 
 ### 8.3 Key architectural commitments
 
-- **R subprocess boundary is the canonical gate.** Every fit logs `{r_version, mada_version, metafor_version, HSROC_version, call_string, exit_status, convergence_code}` to `outputs/fit_audit.jsonl`. Any single fit is reproducible from one audit line.
+- **R subprocess boundary is the canonical gate.** Every fit logs `{r_version, mada_version, metafor_version, CopulaREMADA_version, call_string, exit_status, convergence_code}` to `outputs/fit_audit.jsonl`. Any single fit is reproducible from one audit line.
 - **Frozen thresholds in `thresholds.py`** — constants only. SHA-256 logged in pre-registration; Sentinel rule `P0-frozen-thresholds-locked` BLOCKs any post-tag change without explicit `# spec-amendment:` annotation linking to a CHANGELOG entry.
 - **No raw DTA70 data committed.** DTA70 is loaded via R `data()` from the pinned R package version. This avoids duplicating dataset ownership and ensures corpus reproducibility through the upstream package.
 - **Standalone reproducibility envelope.** `make reproduce` runs corpus load → orchestrator → floors → viewer end-to-end on a fresh clone in <2 hours.
@@ -228,7 +228,7 @@ report.py ──►  docs/index.html  +  outputs/results.json (HMAC-signed)
 |---|---|---|---|---|
 | `corpus/loader.py` | Load DTA70 datasets via R bridge | DTA70 R package version pin | `Iterator[Dataset]` (76 items) | R 4.5.2, DTA70 v0.1.0 |
 | `engines/canonical.py` | Bivariate REML via R `metafor::rma.mv` | `Dataset` | `FitResult` | R subprocess |
-| `engines/hsroc.py` | HSROC via R `HSROC` | `Dataset` | `FitResult` | R subprocess |
+| `engines/copula.py` | CopulaREMADA via R `CopulaREMADA::CopulaREMADA.norm` (Clayton 270°, normal margins) | `Dataset` | `FitResult` | R subprocess |
 | `engines/reitsma.py` | Reitsma via R `mada::reitsma` | `Dataset` | `FitResult` | R subprocess |
 | `engines/moses.py` | Moses-Littenberg D vs S | `Dataset` | `FitResult` | numpy |
 | `engines/invented.py` | Subprocess to invention engines | `Dataset` + engine name | `FitResult` | sibling repos |
@@ -248,7 +248,7 @@ report.py ──►  docs/index.html  +  outputs/results.json (HMAC-signed)
 @dataclass(frozen=True)
 class FitResult:
     dataset_id: str
-    engine: Literal["canonical", "hsroc", "reitsma", "moses", "archaic", "ems", "gds"]
+    engine: Literal["canonical", "copula", "reitsma", "moses", "archaic", "ems", "gds"]
     cascade_level: Literal[1, 2, 3, "inf", "n/a"]  # n/a for non-cascade engines
     converged: bool
     pooled_se: float | None        # None if not converged
@@ -271,9 +271,9 @@ class FitResult:
 
 End-to-end pipeline (one `make reproduce` invocation):
 
-1. **Pre-flight gate.** Verify R 4.5.2 + `mada` + `metafor` + `HSROC` + DTA70 installed; verify `thresholds.py` SHA-256 matches `frozen_thresholds.json`; verify pre-reg git tag exists; verify `TRUTHCERT_HMAC_KEY` env var is set. Any failure: exit 1.
+1. **Pre-flight gate.** Verify R 4.5.2 + `mada` + `metafor` + `CopulaREMADA` + DTA70 + `jsonlite` installed; verify `thresholds.py` SHA-256 matches `frozen_thresholds.json`; verify pre-reg git tag exists; verify `TRUTHCERT_HMAC_KEY` env var is set. Any failure: exit 1.
 2. **Corpus load.** R subprocess reads DTA70; emits 76 `Dataset` objects; writes `outputs/corpus_manifest.jsonl`.
-3. **Engine cascade per dataset (parallelizable).** Strategy IV cascade for canonical bivariate; full HSROC, Reitsma, Moses runs; supplementary invention engines if available. All `FitResult`s serialized to `outputs/fits.jsonl`. R failures dumped to `outputs/r_failures/<dataset>_<engine>.txt`.
+3. **Engine cascade per dataset (parallelizable).** Strategy IV cascade for canonical bivariate; full CopulaREMADA, Reitsma, Moses runs; supplementary invention engines if available. All `FitResult`s serialized to `outputs/fits.jsonl`. R failures dumped to `outputs/r_failures/<dataset>_<engine>.txt`.
 4. **Floors computation.** All four floors computed from `outputs/fits.jsonl`. Output: `outputs/floors.json` (HMAC-signed).
 5. **Reporting.** `report.py` aggregates to `outputs/results.json` (HMAC-signed) and `docs/index.html` (≤80KB, inline-SVG, offline). Per-figure SVG extracted to `paper/figures/`.
 6. **Verification gate.** `pytest tests/` must pass; Sentinel pre-push hook must report 0 BLOCK; Overmind nightly verifier must reach `PASS`.
@@ -340,7 +340,7 @@ One per module boundary; assert outputs are not silent-failure sentinels (per th
 
 ### Layer 2 — R parity tests (~30 tests)
 
-10 stratified DTA70 datasets × 3 R-backed methods; tolerance 1e-6 vs direct `mada` / `metafor` / `HSROC` invocation.
+10 stratified DTA70 datasets × 3 R-backed methods; tolerance 1e-6 vs direct `mada` / `metafor` / `CopulaREMADA` invocation.
 
 ### Layer 3 — Floor-arithmetic tests (~20 tests)
 
@@ -490,7 +490,8 @@ To be revisited only after v0.1 ships and Tier 2 reviewer reaction is known. Pic
 - **DTA**: Diagnostic test accuracy.
 - **DTA70**: 76-dataset open R package with complete 2×2 ground truth across 13 specialties.
 - **Bivariate model**: Hierarchical normal-normal model on logit-Se and logit-Sp jointly (Reitsma 2005, Chu & Cole 2006).
-- **HSROC**: Hierarchical summary ROC model (Rutter & Gatsonis 2001).
+- **CopulaREMADA**: Copula random-effects DTA model with normal or beta margins (Nikoloulopoulos 2015). Substituted for HSROC at v0.1 due to HSROC's CRAN archive status.
+- **HSROC**: Hierarchical summary ROC model (Rutter & Gatsonis 2001). NOT used at v0.1 — package archived from CRAN 2024 with no R 4.5 build; replaced by CopulaREMADA. Listed here for reference; v0.2 may add a PyMC/Stan port.
 - **Reitsma SROC**: SROC curve derived from the bivariate model (Reitsma 2005; `mada::reitsma`).
 - **Moses-Littenberg**: D vs S linear regression (Moses, Shapiro & Littenberg 1993). Closed-form, no convergence concept.
 - **Floor**: A pre-registered fraction of the DTA70 corpus meeting a specific threshold criterion.
@@ -503,6 +504,7 @@ To be revisited only after v0.1 ships and Tier 2 reviewer reaction is known. Pic
 - Reitsma JB et al. (2005). Bivariate analysis of sensitivity and specificity. J Clin Epidemiol.
 - Chu H, Cole SR (2006). Bivariate meta-analysis of sensitivity and specificity with sparse data. J Clin Epidemiol.
 - Rutter CM, Gatsonis CA (2001). HSROC. Stat Med.
+- Nikoloulopoulos AK (2015). A vine copula mixed effect model for trivariate meta-analysis of diagnostic test accuracy studies. Stat Methods Med Res 24(6):780-805.
 - Hamza TH et al. (2008). The binomial distribution of meta-analysis was preferred to model within-study variability. J Clin Epidemiol.
 - Doebler P et al. (2015). Meta-analysis of diagnostic accuracy with mada. R Journal.
 - Moses LE, Shapiro D, Littenberg B (1993). Combining independent studies of a diagnostic test. Stat Med.
