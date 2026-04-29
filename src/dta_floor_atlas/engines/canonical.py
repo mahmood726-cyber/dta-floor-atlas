@@ -79,11 +79,13 @@ cat(toJSON(out, auto_unbox=TRUE, na="null", digits=15))
 """
 
 
-def fit_canonical(d: Dataset, *, raise_on_error: bool = False) -> FitResult:
+def fit_canonical(d: Dataset, *, raise_on_error: bool = False, timeout_s: int = 300) -> FitResult:
     """Fit canonical bivariate REML via R metafor::rma.mv.
 
     raise_on_error: if False (default for production), R failures are recorded
     in the returned FitResult -- non-convergence is data, not exception.
+    timeout_s: per-call R timeout; default 300s. Callers may pass a larger
+    value for very large-k datasets (see cascade._timeout_for_dataset).
     """
     add_cc = needs_continuity(d.study_table)
     sj = study_table_to_r_json(d.study_table)
@@ -95,7 +97,7 @@ def fit_canonical(d: Dataset, *, raise_on_error: bool = False) -> FitResult:
     os.environ["DTA_ADD_CONTINUITY"] = "TRUE" if add_cc else "FALSE"
     try:
         try:
-            res = run_r(_FIT_CANONICAL_R, raise_on_error=raise_on_error)
+            res = run_r(_FIT_CANONICAL_R, timeout_s=timeout_s, raise_on_error=raise_on_error)
         except (RTimeout, RError) as e:
             return _failed_fit(d, reason=type(e).__name__, exit_status=1, call_string=_FIT_CANONICAL_R[:200])
         if res.exit_status != 0:

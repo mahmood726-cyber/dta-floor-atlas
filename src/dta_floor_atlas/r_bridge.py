@@ -1,6 +1,6 @@
 """R subprocess wrapper. Single boundary for all R interop in the engines."""
 from __future__ import annotations
-import json, os, shutil, subprocess, tempfile
+import json, os, shutil, subprocess, sys, tempfile, threading
 from dataclasses import dataclass
 
 
@@ -61,16 +61,86 @@ def _r_version(rscript: str) -> str:
     return text.strip().splitlines()[0] if text.strip() else "unknown"
 
 
+def _run_subprocess_with_timeout(cmd: list[str], timeout_s: int, env: dict) -> tuple[str, str, int]:
+    """Run a subprocess with a hard timeout that reliably kills on Windows.
+
+    On Windows, subprocess.run(timeout=N) raises TimeoutExpired then calls
+    process.kill() followed by process.communicate() to drain pipes.  If the
+    killed process does not release its pipe handles quickly (common with R's
+    native DLL code), the communicate() call can block indefinitely even after
+    the kill — causing the Python caller to hang.
+
+    Fix: use Popen + a daemon thread that calls communicate().  The main thread
+    waits for the thread to finish within timeout_s seconds.  If it doesn't, we
+    force-kill the process and close the pipes explicitly, then wait briefly for
+    the thread to drain (with a hard 5-second cap) before giving up.
+
+    Returns (stdout, stderr, returncode).  Raises RTimeout if the timeout fires.
+    """
+    # CREATE_NO_WINDOW suppresses a flashing console on Windows.
+    kwargs: dict = {}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        **kwargs,
+    )
+
+    result: list = [None, None, None]  # [stdout, stderr, returncode]
+
+    def _communicate():
+        try:
+            out, err = proc.communicate()
+            result[0] = out
+            result[1] = err
+            result[2] = proc.returncode
+        except Exception:
+            result[0] = result[0] or ""
+            result[1] = result[1] or ""
+            result[2] = result[2] if result[2] is not None else -1
+
+    t = threading.Thread(target=_communicate, daemon=True)
+    t.start()
+    t.join(timeout=timeout_s)
+
+    if t.is_alive():
+        # Timeout: kill the process, then close pipes to unblock communicate().
+        try:
+            proc.kill()
+        except OSError:
+            pass
+        # Close the pipe ends on the Python side so communicate() can drain.
+        for f in (proc.stdout, proc.stderr):
+            try:
+                if f:
+                    f.close()
+            except OSError:
+                pass
+        # Give the thread 5 more seconds to exit after pipe close.
+        t.join(timeout=5)
+        raise RTimeout(f"R call exceeded {timeout_s}s")
+
+    return result[0] or "", result[1] or "", result[2] if result[2] is not None else -1
+
+
 def run_r(
     code: str,
-    timeout_s: int = 60,
+    timeout_s: int = 300,
     raise_on_error: bool = True,
 ) -> RCallResult:
     """Execute R code via Rscript subprocess.
 
     Args:
         code: R expression(s) to evaluate. Use cat() to emit stdout.
-        timeout_s: per-call timeout. Default 60s matches spec error-handling §11.2.
+        timeout_s: per-call timeout in seconds.  Default 300s — large DTA
+            datasets (k>100) can take 2-3 minutes for bivariate REML.
+            Windows note: uses a thread-based kill to avoid pipe-deadlock
+            after TerminateProcess() (see _run_subprocess_with_timeout).
         raise_on_error: if True, raise RError on non-zero exit. If False, return
             the RCallResult with the failure recorded — for floor analysis
             where R failure is data, not exception.
@@ -99,18 +169,21 @@ def run_r(
             cmd = [rscript, tmp_path]
         else:
             cmd = [rscript, "-e", code]
+        # Pass current environment so env vars (DTA_STUDY_TABLE_JSON, etc.) are inherited.
         try:
-            out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
-        except subprocess.TimeoutExpired as e:
-            raise RTimeout(f"R call exceeded {timeout_s}s: {code[:80]}") from e
+            stdout, stderr, returncode = _run_subprocess_with_timeout(
+                cmd, timeout_s, env=os.environ.copy()
+            )
+        except RTimeout:
+            raise
     finally:
         if tmp_path and os.path.isfile(tmp_path):
             os.unlink(tmp_path)
 
     result = RCallResult(
-        stdout=out.stdout,
-        stderr=out.stderr,
-        exit_status=out.returncode,
+        stdout=stdout,
+        stderr=stderr,
+        exit_status=returncode,
         r_version=_r_version(rscript),
         call_string=code,
     )

@@ -161,10 +161,30 @@ if (!ok) {
 )
 
 
+def _timeout_for_dataset(k: int) -> int:
+    """Return a k-adaptive per-R-call timeout in seconds.
+
+    Bivariate REML via metafor::rma.mv scales roughly with k^2 (O(n^2) Hessian).
+    Empirical calibration on DTA70:
+      k<=50:   300s (default, always sufficient)
+      k<=200:  600s
+      k<=500:  900s
+      k>500:  1800s (e.g. Cochrane_CD008803 k=1018)
+    """
+    if k <= 50:
+        return 300
+    if k <= 200:
+        return 600
+    if k <= 500:
+        return 900
+    return 1800
+
+
 def _fit_at_level(d: Dataset, level: int) -> FitResult:
     """Fit canonical at the given cascade level (1=unconstrained, 2=constrained, 3=rho=0)."""
+    timeout_s = _timeout_for_dataset(d.n_studies)
     if level == 1:
-        return fit_canonical(d, raise_on_error=False)
+        return fit_canonical(d, raise_on_error=False, timeout_s=timeout_s)
     add_cc = needs_continuity(d.study_table)
     sj = study_table_to_r_json(d.study_table)
     script = _FIT_CANONICAL_STARTING_SWEEP_R if level == 2 else _FIT_CANONICAL_RHO_ZERO_R
@@ -176,7 +196,7 @@ def _fit_at_level(d: Dataset, level: int) -> FitResult:
     os.environ["DTA_ADD_CONTINUITY"] = "TRUE" if add_cc else "FALSE"
     try:
         try:
-            res = run_r(script, raise_on_error=False)
+            res = run_r(script, timeout_s=timeout_s, raise_on_error=False)
         except (RTimeout, RError) as e:
             return _failed_fit(d, reason=type(e).__name__, exit_status=1, call_string=script[:200])
         if res.exit_status != 0:
