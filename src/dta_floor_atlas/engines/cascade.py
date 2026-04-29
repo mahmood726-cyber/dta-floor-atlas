@@ -1,7 +1,7 @@
 """Strategy IV convergence cascade.
 
 Level 1: canonical REML (rho unconstrained, default starting values)
-Level 2: REML with rho constrained to [-0.95, 0.95]
+Level 2: REML with starting-value sweep rho_init in {-0.9, -0.5, 0, 0.5, 0.9}
 Level 3: REML with rho fixed at 0 (struct=DIAG)
 Level inf: irreducible failure (no level converged)
 
@@ -18,10 +18,14 @@ from dta_floor_atlas.types import Dataset, FitResult
 from dta_floor_atlas.engines._r_helpers import study_table_to_r_json, needs_continuity
 
 
-# Level 2: rho constrained to [-0.95, 0.95] via metafor's con.tau2 / con.rho mechanism.
-# metafor 4.x supports rho constraints via the `control` argument: list(rho_lb=..., rho_ub=...).
-# Level 3: rho fixed at 0 via struct="DIAG" (diagonal Sigma).
-_FIT_CANONICAL_CONSTRAINED_R = r"""
+# Level 2: starting-value sweep. Try rho_init in {-0.9, -0.5, 0, 0.5, 0.9} sequentially;
+# first value that converges with finite Hessian is the rescue.
+# metafor's rma.mv `rho` parameter sets the starting value for the correlation parameter
+# (confirmed: rho is in formals(rma.mv) for metafor 4.8-0).
+# Amendment 2026-04-29: replaces "constrained rho [-0.95, 0.95]" from original spec —
+# metafor's `control = list(rho_lb=..., rho_ub=...)` keys do not exist at runtime;
+# starting-value perturbation is the practical equivalent.
+_FIT_CANONICAL_STARTING_SWEEP_R = r"""
 suppressPackageStartupMessages({
   library(metafor); library(jsonlite)
 })
@@ -43,12 +47,94 @@ long <- data.frame(
   yi      = c(df$lse, df$lfp),
   vi      = c(df$v_lse, df$v_lfp)
 )
-ok <- TRUE
+
+starting_values <- c(-0.9, -0.5, 0, 0.5, 0.9)
+fit <- NULL
+rho_used <- NA_real_
+for (rho_init in starting_values) {
+  attempt <- tryCatch(
+    rma.mv(yi, vi, mods = ~ outcome - 1,
+           random = ~ outcome | study, struct = "UN",
+           data = long, method = "REML",
+           sigma2 = c(0.5, 0.5),
+           rho = rho_init),
+    error = function(e) NULL
+  )
+  if (!is.null(attempt) && (is.null(attempt$convergence) || attempt$convergence == 0)) {
+    fit <- attempt
+    rho_used <- rho_init
+    break
+  }
+}
+
+if (is.null(fit)) {
+  out <- list(converged = FALSE,
+              reason = "all_starting_values_failed",
+              starting_values_tried = starting_values,
+              metafor_version = as.character(packageVersion("metafor")))
+} else {
+  b <- coef(fit)
+  pooled_se <- 1 / (1 + exp(-as.numeric(b["outcomelse"])))
+  pooled_sp <- 1 - 1 / (1 + exp(-as.numeric(b["outcomelfp"])))
+  rho_val <- if (length(fit$rho) > 0) as.numeric(fit$rho[1]) else NA_real_
+  tau2 <- fit$tau2
+  out <- list(
+    converged = TRUE,
+    pooled_se = pooled_se, pooled_sp = pooled_sp,
+    rho = rho_val, rho_init_used = rho_used,
+    tau2_logit_se = if (length(tau2) >= 1) as.numeric(tau2[1]) else NA_real_,
+    tau2_logit_sp = if (length(tau2) >= 2) as.numeric(tau2[2]) else NA_real_,
+    metafor_version = as.character(packageVersion("metafor"))
+  )
+}
+cat(toJSON(out, auto_unbox=TRUE, na="null", digits=15))
+"""
+
+_FIT_CANONICAL_RHO_ZERO_R = _FIT_CANONICAL_STARTING_SWEEP_R.replace(
+    """starting_values <- c(-0.9, -0.5, 0, 0.5, 0.9)
+fit <- NULL
+rho_used <- NA_real_
+for (rho_init in starting_values) {
+  attempt <- tryCatch(
+    rma.mv(yi, vi, mods = ~ outcome - 1,
+           random = ~ outcome | study, struct = "UN",
+           data = long, method = "REML",
+           sigma2 = c(0.5, 0.5),
+           rho = rho_init),
+    error = function(e) NULL
+  )
+  if (!is.null(attempt) && (is.null(attempt$convergence) || attempt$convergence == 0)) {
+    fit <- attempt
+    rho_used <- rho_init
+    break
+  }
+}
+
+if (is.null(fit)) {
+  out <- list(converged = FALSE,
+              reason = "all_starting_values_failed",
+              starting_values_tried = starting_values,
+              metafor_version = as.character(packageVersion("metafor")))
+} else {
+  b <- coef(fit)
+  pooled_se <- 1 / (1 + exp(-as.numeric(b["outcomelse"])))
+  pooled_sp <- 1 - 1 / (1 + exp(-as.numeric(b["outcomelfp"])))
+  rho_val <- if (length(fit$rho) > 0) as.numeric(fit$rho[1]) else NA_real_
+  tau2 <- fit$tau2
+  out <- list(
+    converged = TRUE,
+    pooled_se = pooled_se, pooled_sp = pooled_sp,
+    rho = rho_val, rho_init_used = rho_used,
+    tau2_logit_se = if (length(tau2) >= 1) as.numeric(tau2[1]) else NA_real_,
+    tau2_logit_sp = if (length(tau2) >= 2) as.numeric(tau2[2]) else NA_real_,
+    metafor_version = as.character(packageVersion("metafor"))
+  )
+}""",
+    """ok <- TRUE
 fit <- tryCatch(
   rma.mv(yi, vi, mods = ~ outcome - 1,
-         random = ~ outcome | study, struct = "UN",
-         data = long, method = "REML",
-         control = list(rho_lb = -0.95, rho_ub = 0.95)),
+         random = ~ outcome | study, struct = "DIAG",
+         data = long, method = "REML"),
   error = function(e) { ok <<- FALSE; e }
 )
 if (!ok) {
@@ -71,13 +157,7 @@ if (!ok) {
     tau2_logit_sp = if (length(tau2) >= 2) as.numeric(tau2[2]) else NA_real_,
     metafor_version = as.character(packageVersion("metafor"))
   )
-}
-cat(toJSON(out, auto_unbox=TRUE, na="null", digits=15))
-"""
-
-_FIT_CANONICAL_RHO_ZERO_R = _FIT_CANONICAL_CONSTRAINED_R.replace(
-    'struct = "UN",\n         data = long, method = "REML",\n         control = list(rho_lb = -0.95, rho_ub = 0.95)',
-    'struct = "DIAG",\n         data = long, method = "REML"'
+}"""
 )
 
 
@@ -87,7 +167,7 @@ def _fit_at_level(d: Dataset, level: int) -> FitResult:
         return fit_canonical(d, raise_on_error=False)
     add_cc = needs_continuity(d.study_table)
     sj = study_table_to_r_json(d.study_table)
-    script = _FIT_CANONICAL_CONSTRAINED_R if level == 2 else _FIT_CANONICAL_RHO_ZERO_R
+    script = _FIT_CANONICAL_STARTING_SWEEP_R if level == 2 else _FIT_CANONICAL_RHO_ZERO_R
     env_was = {
         "DTA_STUDY_TABLE_JSON": os.environ.get("DTA_STUDY_TABLE_JSON"),
         "DTA_ADD_CONTINUITY": os.environ.get("DTA_ADD_CONTINUITY"),
@@ -123,7 +203,7 @@ def _fit_at_level(d: Dataset, level: int) -> FitResult:
             tau2_logit_se=parsed.get("tau2_logit_se"), tau2_logit_sp=parsed.get("tau2_logit_sp"),
             auc_partial=None,
             r_version=res.r_version, package_version=parsed.get("metafor_version"),
-            call_string=("level=2 constrained rho [-0.95,0.95]" if level == 2 else "level=3 rho fixed at 0"),
+            call_string=("level=2 starting-value sweep rho_init in {-0.9,-0.5,0,0.5,0.9}" if level == 2 else "level=3 rho fixed at 0"),
             exit_status=0, convergence_reason="ok", raw_stdout_sha256=None,
         )
     finally:

@@ -1,12 +1,12 @@
 {
   "files": {
-    "src/dta_floor_atlas/engines/cascade.py": "fcaa11a1be6e0bc98ecf06ea5a69af9363d3a5b8a4bd52f5f99ba8fb0564aafb",
+    "src/dta_floor_atlas/engines/cascade.py": "a0e21d8d4a27c062ce8f1c6d1fcb2f3d3ea08c4909c969ae7bb10191403b9256",
     "src/dta_floor_atlas/floors/convergence.py": "MISSING",
     "src/dta_floor_atlas/floors/decision_flip.py": "MISSING",
     "src/dta_floor_atlas/floors/disagreement.py": "MISSING",
     "src/dta_floor_atlas/floors/rescue.py": "MISSING",
     "src/dta_floor_atlas/thresholds.py": "531a667f3c1108903b0de4cd50289a9a95985fa7e169c44a6390033e02cc0999"
   },
-  "freeze_timestamp": "2026-04-29T06:52:02.848090+00:00",
+  "freeze_timestamp": "2026-04-29T10:00:05.073831+00:00",
   "spec": "docs/superpowers/specs/2026-04-28-dta-reproduction-floor-atlas-design.md"
 }

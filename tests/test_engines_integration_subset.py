@@ -77,3 +77,19 @@ def test_cascade_records_a_level_for_every_dataset():
         assert fit.cascade_level in (1, 2, 3, "inf"), (
             f"{d.dataset_id}: unexpected cascade_level={fit.cascade_level!r}"
         )
+
+
+@pytest.mark.slow
+def test_cascade_level_2_runs_without_crashing_on_real_data():
+    """Direct test of the level-2 starting-value sweep on a real DTA70 dataset.
+
+    We don't require it to converge — only that it returns a valid FitResult
+    without raising. Convergence depends on the dataset and metafor's behavior.
+    """
+    from dta_floor_atlas.engines.cascade import _fit_at_level
+    datasets = [d for d in load_dta70_datasets() if d.dataset_id in SUBSET_NAMES]
+    if not datasets:
+        pytest.skip("subset not present")
+    fit = _fit_at_level(datasets[0], 2)
+    assert fit.engine == "canonical"
+    assert fit.cascade_level in (1, 2, 3, "inf")  # may inherit level=1 or report a defined level

@@ -18,7 +18,7 @@ parent_atlas_series:
 
 ## 0. Executive summary
 
-`dta-floor-atlas` is the fifth atlas in the Pairwise70-adjacent reproducibility series, applying empirical floor analysis to diagnostic test accuracy (DTA) meta-analysis. Using the DTA70 corpus (76 datasets, 1,966+ studies, complete 2×2 ground truth) as a frozen testbed and the validated MetaSprint DTA engine (33/33 R parity vs `mada`/`metafor`) as the canonical bivariate reference, the atlas reports four pre-registered floor categories: (1) canonical-bivariate convergence failure rate, (2) cascade-spectrum decomposition into silent-rescue at constrained-ρ, silent-rescue at ρ=0, and irreducible failure, (3) inter-method disagreement at \|ΔSe\|>5pp or \|ΔSp\|>5pp among converged fits, and (4) decision-flip rate measured as PPV/NPV swings exceeding 5 percentage points at clinically realistic prevalences. The primary headline is decision-relevant (Floor 4); the methodological backbone is the composite reproduction floor (Floors 1-3). Output is a single-file inline-SVG dashboard plus an E156 micro-paper and a Synthēsis Methods Note (≤400w); a longer follow-on (BMJ Open Diagnostic & Prognostic Research / Statistics in Medicine / J Clin Epidemiol) is deferred to v0.2 pending v0.1 reception.
+`dta-floor-atlas` is the fifth atlas in the Pairwise70-adjacent reproducibility series, applying empirical floor analysis to diagnostic test accuracy (DTA) meta-analysis. Using the DTA70 corpus (76 datasets, 1,966+ studies, complete 2×2 ground truth) as a frozen testbed and the validated MetaSprint DTA engine (33/33 R parity vs `mada`/`metafor`) as the canonical bivariate reference, the atlas reports four pre-registered floor categories: (1) canonical-bivariate convergence failure rate, (2) cascade-spectrum decomposition into silent-rescue at constrained-ρ, silent-rescue at ρ=0, and irreducible failure, (3) inter-method disagreement at \|ΔSe\|>5pp or \|ΔSp\|>5pp among converged fits, and (4) decision-flip rate measured as PPV/NPV swings exceeding 5 percentage points at any of four pre-registered prevalence anchors (1%, 5%, 20%, 50%) spanning realistic screening contexts. The primary headline is decision-relevant (Floor 4); the methodological backbone is the composite reproduction floor (Floors 1-3). Output is a single-file inline-SVG dashboard plus an E156 micro-paper and a Synthēsis Methods Note (≤400w); a longer follow-on (BMJ Open Diagnostic & Prognostic Research / Statistics in Medicine / J Clin Epidemiol) is deferred to v0.2 pending v0.1 reception.
 
 ## 1. Background and motivation
 
@@ -37,13 +37,13 @@ The atlas reports four floors. Each floor is a fraction of DTA70 datasets meetin
 **Floor 2 — cascade spectrum (silent-rescue + irreducible failure).** Decomposition of Floor 1 numerator into where in the cascade each canonical-failed dataset lands. The cascade has three levels:
 
 - Level 1: canonical REML (defines Floor 1).
-- Level 2: REML with ρ constrained to [-0.95, 0.95] (per Hamza 2008; per `advanced-stats.md` rule).
+- Level 2: REML with starting-value sweep ρ_init ∈ {-0.9, -0.5, 0, 0.5, 0.9}; first starting value that converges is the rescue. (Replaces "constrained ρ" from the original spec — metafor's `rma.mv` does not support runtime ρ constraints. Starting-value perturbation is the standard equivalent for escaping boundary traps; Hamza 2008, Viechtbauer 2010.)
 - Level 3: REML with ρ fixed at 0.
 - Level ∞: irreducible failure — no level converges.
 
 Floor 2 has three reported sub-fractions (each as a percentage of all 76 DTA70 datasets):
 
-- **Floor 2a — silent-rescue at level 2** (constrained-ρ rescue).
+- **Floor 2a — silent-rescue at level 2** (starting-value sweep rescue).
 - **Floor 2b — silent-rescue at level 3** (ρ=0 rescue).
 - **Floor 2c — irreducible failure** (level ∞).
 
@@ -53,16 +53,16 @@ Note: Floor 1 = Floor 2a + Floor 2b + Floor 2c by construction.
 
 A comparator that fails to converge for a given dataset is excluded from that dataset's pairwise comparisons. A dataset with fewer than two converged comparators is excluded from Floor 3 with explicit attrition record (denominator and exclusion count both reported).
 
-**Floor 4 — decision-flip rate (PRIMARY HEADLINE).** Among DTA70 datasets where at least two primary comparators (canonical-cascade-resolved at any level, CopulaREMADA, Reitsma, Moses-Littenberg) converge (same denominator basis as Floor 3), the fraction where method choice induces a positive predictive value (PPV) or negative predictive value (NPV) swing exceeding 5 percentage points (`PPV_SWING = 0.05`, `NPV_SWING = 0.05`).
+**Floor 4 — decision-flip rate (PRIMARY HEADLINE).** Among DTA70 datasets where at least two primary comparators (canonical-cascade-resolved at any level, CopulaREMADA, Reitsma, Moses-Littenberg) converge (same denominator basis as Floor 3), the fraction where method choice induces a positive predictive value (PPV) or negative predictive value (NPV) swing exceeding 5 percentage points (`PPV_SWING = 0.05`, `NPV_SWING = 0.05`) at AT LEAST ONE of the four prevalence anchors in `PREV_GRID = (0.01, 0.05, 0.20, 0.50)`.
 
-A comparator that fails to converge for a given dataset is excluded from that dataset's PPV/NPV pairwise comparisons. A dataset with fewer than two converged comparators is excluded from Floor 4 with explicit attrition record. A dataset without a reported clinical prevalence is excluded from the primary (reported-prev) arm of Floor 4 but retained in the sensitivity (grid) arm.
+A comparator that fails to converge for a given dataset is excluded from that dataset's PPV/NPV pairwise comparisons. A dataset with fewer than two converged comparators is excluded from Floor 4 with explicit attrition record.
 
-Reported at:
+**Rationale for grid-only anchoring (amendment 2026-04-29):** DTA70 v0.1.0 does not include a per-dataset reported clinical prevalence column. Sample prevalence (TP+FN)/N is unreliable as a proxy because the corpus is dominated by case-control designs where sample prevalence is inflated relative to clinical prevalence. The 4-prevalence grid spans realistic screening contexts (1% rare-disease screening, 5% population screening, 20% symptomatic-population testing, 50% diagnostic confirmation). Reporting Floor 4 as "any-grid-prevalence swing" is more defensible than a single-prevalence anchor that does not actually exist in the data.
 
-- **Primary anchor**: dataset's own reported clinical prevalence (one prevalence per dataset).
-- **Sensitivity anchor**: prevalence grid `PREV_GRID = (0.01, 0.05, 0.20, 0.50)` applied to every eligible dataset, regardless of clinical context.
+Reported as:
 
-Floor 4 has two reported numbers: `pct_at_reported_prev` (primary) and `pct_at_any_grid_prev` (max across grid; sensitivity).
+- **Primary number**: `pct_at_any_grid_prev` — fraction with method-induced PPV or NPV swing > 5pp at AT LEAST ONE of the four grid prevalences.
+- **Per-prevalence breakdown** (auxiliary): `pct_at_prev_0.01`, `pct_at_prev_0.05`, `pct_at_prev_0.20`, `pct_at_prev_0.50` — informative for showing how floor varies with prevalence (low prevalence amplifies PPV swings via Bayes; high prevalence amplifies NPV swings).
 
 ### 2.2 Auxiliary endpoints (reported but not headline)
 
@@ -117,33 +117,40 @@ Strict inequality (`>`, not `≥`) is used throughout. A method-disagreement of 
 
 ## 6. Prevalence anchors
 
-**Primary anchor: dataset's reported prevalence.** Each DTA70 dataset records, where available, the prevalence reported in the source review or its included studies. For Floor 4 primary, use this single value per dataset.
+**Single anchor: 4-prevalence grid `(0.01, 0.05, 0.20, 0.50)`.** Applied to every eligible Floor 4 dataset.
 
-**Sensitivity anchor: 4-prevalence grid `(0.01, 0.05, 0.20, 0.50)`.** Applied to every dataset regardless of clinical realism. Captures how the floor moves with prevalence — low-prevalence amplifies PPV swings (Bayes); high-prevalence amplifies NPV swings.
+The grid spans realistic screening-test contexts:
+- 1% — rare-disease screening (e.g. early cancer detection in asymptomatic populations)
+- 5% — moderate-prevalence population screening
+- 20% — symptomatic-population diagnostic testing
+- 50% — diagnostic confirmation in pre-test-probability-balanced settings
 
-Datasets without reported prevalence are dropped from the Floor 4 primary number and counted in attrition. They remain in Floor 4 grid sensitivity.
+Floor 4 is reported once as the "any-grid" maximum-swing percentage and four times as per-prevalence numbers. The original spec called for a primary "dataset's reported clinical prevalence" anchor; this was removed in the 2026-04-29 amendment after Plan 1 corpus-loader work confirmed DTA70 does not carry per-dataset prevalence data.
 
 ## 7. Convergence cascade (Strategy IV)
 
 Implemented in `src/dta_floor_atlas/engines/cascade.py`. Each dataset undergoes:
 
 ```
-Level 1: REML with ρ unconstrained, default starting values
-    → if converges (metafor reports `convergence == 0` AND finite Hessian): record level=1
+Level 1: REML with default starting values (ρ_init = 0)
+    → if converges: cascade_level=1 (canonical success)
     → else: try Level 2
 
-Level 2: REML with ρ constrained to [-0.95, 0.95]
-    → if converges: record level=2 (silent rescue)
+Level 2: REML with starting-value sweep ρ_init ∈ {-0.9, -0.5, 0, 0.5, 0.9}
+    → for each ρ_init, attempt rma.mv with that as starting rho
+    → if any starting value converges: cascade_level=2 (rescued via starting perturbation)
     → else: try Level 3
 
-Level 3: REML with ρ fixed at 0
-    → if converges: record level=3 (silent rescue)
-    → else: record level=∞ (irreducible failure)
+Level 3: REML with struct="DIAG" (rho fixed at 0 — diagonal Sigma)
+    → if converges: cascade_level=3 (rescued by removing rho parameter)
+    → else: cascade_level="inf" (irreducible failure)
 ```
 
 The cascade level is recorded in `outputs/fits.jsonl` for every dataset. Floor 1 = `count(level≠1) / total`. Floor 2 = stratified by level among Floor 1 numerator.
 
 The cascade does NOT include alternative estimators (ML, MM, DerSimonian-Laird) at v0.1. These are v0.2 candidates if reviewer feedback demands additional sensitivity.
+
+**Amendment 2026-04-29:** The original spec called for "constrained ρ ∈ [-0.95, 0.95]" at level 2. This was based on the methodological literature (Hamza 2008) but assumed metafor's `rma.mv` exposed a runtime parameter constraint. It does not. The 2026-04-29 amendment replaces this with starting-value perturbation, which is the practical mechanism that constrained-rho rescue achieves at runtime — and is supported by metafor.
 
 ## 8. Architecture
 
@@ -407,12 +414,12 @@ After `preregistration-v1.0.0` is pushed, ANY change to a locked artifact requir
 | Floor | Pre-registered prior estimate (range) | Rationale |
 |---|---|---|
 | Floor 1 — canonical convergence failure | 15-30% | Bivariate REML failure rate at small k is documented (Reitsma 2005, Hamza 2008, Doebler 2015). DTA70's k distribution skews to k≤10. |
-| Floor 2a — silent-rescue at level 2 (constrained-ρ) | 10-22% | Constrained-ρ rescue is the dominant fix per Hamza 2008 simulations. |
+| Floor 2a — silent-rescue at level 2 (starting-value sweep) | 8-20% | Lower than original prior (was 10-22% for constrained-ρ); starting-value perturbation rescues fewer cases than the theoretical fully-constrained method, but is the actual mechanism available in metafor. |
 | Floor 2b — silent-rescue at level 3 (ρ=0) | 2-8% | Residual rescue when constrained-ρ also fails — typically near-zero-correlation regimes. |
 | Floor 2c — irreducible failure (level ∞) | 0-3% | Should be near-zero; non-zero indicates extremely sparse data (k=2 or all-zero cells). |
 | Floor 3 — method disagreement at \|Δ\|>5pp | 20-40% | Disagreement is most pronounced when Spearman[logit(Se), logit(1-Sp)] > 0.6 (your `advanced-stats.md` rule); expect 30-50% of DTA70 datasets meet this criterion. |
-| Floor 4 (primary, at reported prev) | 10-25% | At dataset-reported prevalence, PPV swings are damped by the confluence of method differences; at low-prev grid points the floor is expected to roughly double. |
-| Floor 4 (sensitivity, max across grid) | 20-50% | Low-prevalence (1%) amplifies PPV swings (Bayes); expect a marked increase at prev ≤ 5%. |
+| Floor 4 (any-grid maximum swing > 5pp) | 25-50% | Combines all four prevalence anchors. Low-prevalence (1%, 5%) contributes the most flagged cases (Bayes amplifies PPV swing when base rate is low); 20%-50% contributes less. |
+| Floor 4 (per-prevalence breakdown at 1%) | 30-55% | Highest expected because PPV is most sensitive to method-induced Se/Sp differences at low prevalence. |
 
 Post-data placement of each floor inside or outside its pre-registered band is reported transparently in the paper's Discussion.
 
@@ -495,7 +502,7 @@ To be revisited only after v0.1 ships and Tier 2 reviewer reaction is known. Pic
 - **Reitsma SROC**: SROC curve derived from the bivariate model (Reitsma 2005; `mada::reitsma`).
 - **Moses-Littenberg**: D vs S linear regression (Moses, Shapiro & Littenberg 1993). Closed-form, no convergence concept.
 - **Floor**: A pre-registered fraction of the DTA70 corpus meeting a specific threshold criterion.
-- **Cascade level**: Position in the convergence-rescue cascade (1 = canonical REML; 2 = constrained ρ; 3 = ρ=0; ∞ = irreducible failure).
+- **Cascade level**: Position in the convergence-rescue cascade (1 = canonical REML; 2 = starting-value sweep rescue; 3 = ρ=0 via struct=DIAG; ∞ = irreducible failure).
 - **Decision-flip**: PPV or NPV swing exceeding 5 percentage points at a given prevalence, induced by method choice.
 - **Pre-registration tag**: Git tag `preregistration-v1.0.0` containing locked spec + thresholds + floors + cascade + corpus pin, anchored by OpenTimestamps and Internet Archive.
 
