@@ -1,6 +1,6 @@
 """R subprocess wrapper. Single boundary for all R interop in the engines."""
 from __future__ import annotations
-import json, os, shutil, subprocess
+import json, os, shutil, subprocess, tempfile
 from dataclasses import dataclass
 
 
@@ -84,13 +84,28 @@ def run_r(
             cannot be located on PATH or fallback locations.
     """
     rscript = _find_rscript()
+    # On Windows, passing multiline code via Rscript -e causes a crash
+    # (exit 0xC0000005 / access violation) when the shell splits on newlines.
+    # Use a temp file for any code containing newlines; keep -e for single-line
+    # calls so that all existing single-expression callers are unaffected.
+    tmp_path: str | None = None
     try:
-        out = subprocess.run(
-            [rscript, "-e", code],
-            capture_output=True, text=True, timeout=timeout_s,
-        )
-    except subprocess.TimeoutExpired as e:
-        raise RTimeout(f"R call exceeded {timeout_s}s: {code[:80]}") from e
+        if "\n" in code.strip():
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".R", delete=False, encoding="utf-8"
+            ) as tmp:
+                tmp.write(code)
+                tmp_path = tmp.name
+            cmd = [rscript, tmp_path]
+        else:
+            cmd = [rscript, "-e", code]
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        except subprocess.TimeoutExpired as e:
+            raise RTimeout(f"R call exceeded {timeout_s}s: {code[:80]}") from e
+    finally:
+        if tmp_path and os.path.isfile(tmp_path):
+            os.unlink(tmp_path)
 
     result = RCallResult(
         stdout=out.stdout,
