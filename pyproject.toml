@@ -23,4 +23,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers -m 'not slow'"
+markers = [
+    "slow: tests that run R subprocess on real corpus data (deselected by default; use -m slow to run)",
+]
