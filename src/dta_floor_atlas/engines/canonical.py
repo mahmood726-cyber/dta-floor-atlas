@@ -75,7 +75,7 @@ if (!ok) {
     metafor_version = as.character(packageVersion("metafor"))
   )
 }
-cat(toJSON(out, auto_unbox=TRUE, na="null"))
+cat(toJSON(out, auto_unbox=TRUE, na="null", digits=15))
 """
 
 
