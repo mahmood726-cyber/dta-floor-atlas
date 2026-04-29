@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DTA Floor Atlas Dashboard - DTA70_v0.1.0</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:14px;color:#111;background:#f3f4f6;padding:16px}
+h1{font-size:20px;font-weight:700;margin-bottom:4px;color:#1e3a5f}
+.subtitle{font-size:12px;color:#6b7280;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px}
+.panel{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px}
+.panel-title{font-size:15px;font-weight:700;color:#1e3a5f;margin-bottom:4px}
+.headline{font-size:32px;font-weight:800;color:#1e3a5f;margin:8px 0 4px}
+.headline-label{font-size:11px;color:#6b7280;margin-bottom:10px}
+.bar-row{display:flex;align-items:center;gap:8px;margin:4px 0}
+.bar-label{font-size:12px;color:#374151;min-width:90px}
+.bar-pct{font-size:12px;color:#374151;min-width:45px;text-align:right}
+.breakdown{margin-top:10px;border-top:1px solid #f3f4f6;padding-top:8px}
+.breakdown-title{font-size:11px;font-weight:600;color:#6b7280;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em}
+.count-row{display:flex;justify-content:space-between;font-size:12px;color:#374151;padding:2px 0}
+.count-label{color:#6b7280}
+footer{margin-top:20px;font-size:11px;color:#9ca3af;max-width:900px}
+</style>
+</head>
+<body>
+<h1>DTA Floor Atlas</h1>
+<div class="subtitle">Corpus: DTA70_v0.1.0</div>
+
+<div class="grid">
+
+<!-- Floor 1: Convergence Failure -->
+<div class="panel">
+  <div class="panel-title">Floor 1 - Convergence Failure</div>
+  <div class="headline">0.0%</div>
+  <div class="headline-label">datasets requiring cascade rescue or failing outright</div>
+  <div class="bar-row">
+    <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="0" height="18" fill="#3b82f6" rx="2"/></svg>
+    <span class="bar-pct">0.0%</span>
+  </div>
+  <div class="breakdown">
+    <div class="breakdown-title">By cascade level</div>
+    <div class="count-row"><span class="count-label">Level 1 (direct)</span><span>3 / 3</span></div>
+    <div class="count-row"><span class="count-label">Level 2 (start sweep)</span><span>0 / 3</span></div>
+    <div class="count-row"><span class="count-label">Level 3 (rho=0)</span><span>0 / 3</span></div>
+    <div class="count-row"><span class="count-label">Level inf (irreducible)</span><span>0 / 3</span></div>
+  </div>
+</div>
+
+<!-- Floor 2: Cascade Spectrum -->
+<div class="panel">
+  <div class="panel-title">Floor 2 - Cascade Spectrum</div>
+  <div class="headline">0.0%</div>
+  <div class="headline-label">sum of silent rescue + irreducible failure (= Floor 1)</div>
+  <div class="breakdown">
+    <div class="breakdown-title">Decomposition</div>
+    <div class="bar-row">
+      <span class="bar-label">2a start sweep</span>
+      <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="0" height="18" fill="#6366f1" rx="2"/></svg>
+      <span class="bar-pct">0.0%</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">2b rho fixed</span>
+      <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="0" height="18" fill="#8b5cf6" rx="2"/></svg>
+      <span class="bar-pct">0.0%</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">2c irreducible</span>
+      <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="0" height="18" fill="#dc2626" rx="2"/></svg>
+      <span class="bar-pct">0.0%</span>
+    </div>
+  </div>
+</div>
+
+<!-- Floor 3: Inter-method Disagreement -->
+<div class="panel">
+  <div class="panel-title">Floor 3 - Inter-method Disagreement</div>
+  <div class="headline">33.3%</div>
+  <div class="headline-label">eligible datasets with |delta Se| &gt; 5pp or |delta Sp| &gt; 5pp</div>
+  <div class="bar-row">
+    <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="67" height="18" fill="#f59e0b" rx="2"/></svg>
+    <span class="bar-pct">33.3%</span>
+  </div>
+  <div class="breakdown">
+    <div class="breakdown-title">Counts</div>
+    <div class="count-row"><span class="count-label">Eligible datasets</span><span>3</span></div>
+    <div class="count-row"><span class="count-label">Flagged</span><span>1</span></div>
+    <div class="count-row"><span class="count-label">Excluded (&lt;2 converged)</span><span>0</span></div>
+  </div>
+</div>
+
+<!-- Floor 4: Decision Flip -->
+<div class="panel">
+  <div class="panel-title">Floor 4 - Decision Flip (PRIMARY)</div>
+  <div class="headline">33.3%</div>
+  <div class="headline-label">datasets with |delta PPV| or |delta NPV| &gt; 5pp at any grid prevalence</div>
+  <div class="bar-row">
+    <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="67" height="18" fill="#ef4444" rx="2"/></svg>
+    <span class="bar-pct">33.3%</span>
+  </div>
+  <div class="breakdown">
+    <div class="breakdown-title">Per prevalence grid</div>
+    <div class="bar-row">
+      <span class="bar-label">prev=1%</span>
+      <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="0" height="18" fill="#f87171" rx="2"/></svg>
+      <span class="bar-pct">0.0%</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">prev=5%</span>
+      <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="0" height="18" fill="#f87171" rx="2"/></svg>
+      <span class="bar-pct">0.0%</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">prev=20%</span>
+      <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="0" height="18" fill="#f87171" rx="2"/></svg>
+      <span class="bar-pct">0.0%</span>
+    </div>
+    <div class="bar-row">
+      <span class="bar-label">prev=50%</span>
+      <svg width="200" height="18" style="vertical-align:middle;border:1px solid #e5e7eb;border-radius:3px;background:#f9fafb"><rect width="67" height="18" fill="#f87171" rx="2"/></svg>
+      <span class="bar-pct">33.3%</span>
+    </div>
+    <div class="count-row" style="margin-top:6px"><span class="count-label">Eligible</span><span>3</span></div>
+    <div class="count-row"><span class="count-label">Flagged (any prev)</span><span>1</span></div>
+    <div class="count-row"><span class="count-label">Excluded</span><span>0</span></div>
+  </div>
+</div>
+
+</div>
+<footer>DTA Floor Atlas | Corpus: DTA70_v0.1.0 | Generated by dta_floor_atlas.report | ASCII-only output</footer>
+</body>
+</html>

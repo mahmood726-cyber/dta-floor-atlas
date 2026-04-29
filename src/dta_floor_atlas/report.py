@@ -68,9 +68,10 @@ def build_dashboard_html(
     f1_failed = int(floor_1.get("n_failed", 0))
     f1_total = int(floor_1.get("n_total", 0))
     by_level = floor_1.get("by_level", {})
-    f1_l1 = int(by_level.get(1, 0))
-    f1_l2 = int(by_level.get(2, 0))
-    f1_l3 = int(by_level.get(3, 0))
+    # by_level keys may be int (in-memory) or str (loaded from JSON) -- handle both
+    f1_l1 = int(by_level.get(1, by_level.get("1", 0)))
+    f1_l2 = int(by_level.get(2, by_level.get("2", 0)))
+    f1_l3 = int(by_level.get(3, by_level.get("3", 0)))
     f1_linf = int(by_level.get("inf", 0))
 
     # Floor 2 values
@@ -90,10 +91,14 @@ def build_dashboard_html(
     f4_eligible = int(floor_4.get("n_eligible", 0))
     f4_excluded = int(floor_4.get("n_excluded", 0))
     per_prev = floor_4.get("per_prev", {})
-    f4_p01 = float(per_prev.get(0.01, {}).get("pct", 0.0)) if per_prev.get(0.01) else 0.0
-    f4_p05 = float(per_prev.get(0.05, {}).get("pct", 0.0)) if per_prev.get(0.05) else 0.0
-    f4_p20 = float(per_prev.get(0.20, {}).get("pct", 0.0)) if per_prev.get(0.20) else 0.0
-    f4_p50 = float(per_prev.get(0.50, {}).get("pct", 0.0)) if per_prev.get(0.50) else 0.0
+    # per_prev keys may be float (in-memory) or str (loaded from JSON) -- handle both
+    def _pp(key_float, key_str):
+        sub = per_prev.get(key_float) or per_prev.get(key_str)
+        return float(sub.get("pct", 0.0)) if sub else 0.0
+    f4_p01 = _pp(0.01, "0.01")
+    f4_p05 = _pp(0.05, "0.05")
+    f4_p20 = _pp(0.2, "0.2")
+    f4_p50 = _pp(0.5, "0.5")
 
     def bar(pct, color="#3b82f6", max_width=200):
         """Inline SVG horizontal bar. pct in [0,100], max_width px."""

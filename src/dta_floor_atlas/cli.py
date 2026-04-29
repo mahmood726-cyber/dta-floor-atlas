@@ -79,7 +79,8 @@ def cmd_reproduce_subset(_: argparse.Namespace) -> int:
     ])
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUTS_DIR / "results_subset.json"
-    out_path.write_text(json.dumps(bundle, indent=2, sort_keys=True))
+    from dta_floor_atlas.signing import _str_keys
+    out_path.write_text(json.dumps(_str_keys(bundle), indent=2, sort_keys=True))
     p = bundle["payload"]
     print(f"Wrote {out_path}")
     print(f"Floor 1: {p['floor_1']['pct']:.1f}%  Floor 3: {p['floor_3']['pct']:.1f}%  Floor 4: {p['floor_4']['pct_at_any_grid_prev']:.1f}%")
@@ -90,7 +91,8 @@ def cmd_reproduce_full(_: argparse.Namespace) -> int:
     bundle = _run_pipeline_on_datasets([])  # empty list = all 76 datasets
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUTS_DIR / "results.json"
-    out_path.write_text(json.dumps(bundle, indent=2, sort_keys=True))
+    from dta_floor_atlas.signing import _str_keys
+    out_path.write_text(json.dumps(_str_keys(bundle), indent=2, sort_keys=True))
     p = bundle["payload"]
     print(f"Wrote {out_path}")
     print(f"Floor 1: {p['floor_1']['pct']:.1f}%")
