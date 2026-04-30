@@ -169,20 +169,27 @@ if (!ok) {
 def _timeout_for_dataset(k: int) -> int:
     """Return a k-adaptive per-R-call timeout in seconds.
 
-    Bivariate REML via metafor::rma.mv scales roughly with k^2 (O(n^2) Hessian).
+    Amendment 3 (2026-04-30): tightened from 300/600/900/1800s to
+    60/120/240/600s after a 13-hour stall on Cochrane_CD008803 (k=1018)
+    where the cumulative cascade (5 starting-value sweeps + 4 engines)
+    multiplied 1800s into >100 minutes per pathological dataset. Tighter
+    bounds make the pipeline reach "irreducibly non-convergent" faster
+    for outlier-k datasets — the floor arithmetic accommodates this as
+    Floor 2c per spec, no methodological compromise.
+
     Empirical calibration on DTA70:
-      k<=50:   300s (default, always sufficient)
-      k<=200:  600s
-      k<=500:  900s
-      k>500:  1800s (e.g. Cochrane_CD008803 k=1018)
+      k<=50:   60s
+      k<=200:  120s
+      k<=500:  240s
+      k>500:   600s
     """
     if k <= 50:
-        return 300
+        return 60
     if k <= 200:
-        return 600
+        return 120
     if k <= 500:
-        return 900
-    return 1800
+        return 240
+    return 600
 
 
 def _fit_at_level(d: Dataset, level: int) -> FitResult:

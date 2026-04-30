@@ -2,7 +2,7 @@
   "files": {
     "src/dta_floor_atlas/engines/_r_helpers.py": "78aed99071c922dfa81031c858f879ef462f9effdba33cfc68b801527774d9f4",
     "src/dta_floor_atlas/engines/canonical.py": "70547d6e2fbdacb0135e35f956c41e6127cdd01e5755cb08a1c1e23b02f8bebd",
-    "src/dta_floor_atlas/engines/cascade.py": "76d7a83b46c843b27b4e619ecee29c6fe4bc80aa214394bb67a490fc77f2d97a",
+    "src/dta_floor_atlas/engines/cascade.py": "7b8939b9e3cba53ac2bc15a0293262b7c13126636051a7002f3eda65290d95e3",
     "src/dta_floor_atlas/engines/copula.py": "8e9a704253b5079fae88ad3882a24a201c9ba97981f7f076b30a962836911fe7",
     "src/dta_floor_atlas/engines/reitsma.py": "2627298ce37d32aa18582552028b2359bee001e2a64be85ac0c5d9a0ed58ff63",
     "src/dta_floor_atlas/floors/convergence.py": "c67d2edbe90844052033c2e24c6e4adf9c8cfceef06a1f0599d36a4f942a7bea",
@@ -12,6 +12,6 @@
     "src/dta_floor_atlas/r_bridge.py": "650b0b3ef62e4ab103a17a1d87ea64b24ced77aed8d146e40bec27cfbe9032d2",
     "src/dta_floor_atlas/thresholds.py": "531a667f3c1108903b0de4cd50289a9a95985fa7e169c44a6390033e02cc0999"
   },
-  "freeze_timestamp": "2026-04-29T17:00:12.952178+00:00",
+  "freeze_timestamp": "2026-04-30T08:32:24.485117+00:00",
   "spec": "docs/superpowers/specs/2026-04-28-dta-reproduction-floor-atlas-design.md"
 }
